@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Score Predictor — World Cup 2026</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --teal: #00B4A0;
+    --teal-dark: #007A6E;
+    --teal-light: #E0F7F5;
+    --yellow: #FFD600;
+    --ink: #0A1628;
+    --red: #E8002D;
+    --orange: #FF6B00;
+    --white: #fff;
+    --gray: #f5f5f5;
+    --text-muted: #666;
+    --r: 14px;
+    --r-sm: 8px;
+  }
+
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: #f0f0f0;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 0;
+  }
+
+  .app {
+    width: 100%;
+    max-width: 430px;
+    min-height: 100vh;
+    background: var(--white);
+    position: relative;
+    overflow-x: hidden;
+  }
+
+  /* ── Screens ── */
+  .screen { display: none; }
+  .screen.active { display: block; }
+
+  /* ── Top bar ── */
+  .topbar {
+    background: var(--teal);
+    padding: 1rem 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .topbar-icon {
+    width: 36px; height: 36px;
+    background: var(--yellow);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .topbar-icon svg { width: 20px; height: 20px; }
+  .topbar-title { color: #fff; font-size: 16px; font-weight: 600; }
+  .topbar-sub { color: rgba(255,255,255,0.75); font-size: 11px; margin-top: 1px; }
+
+  /* ── Geo banner ── */
+  .geo {
+    height: 64px;
+    background: var(--teal);
+    display: flex; align-items: center;
+    overflow: hidden;
+  }
+  .geo-c { border-radius: 50%; flex-shrink: 0; }
+
+  /* ── Padding wrappers ── */
+  .pad { padding: 1.25rem; }
+  .pad-sm { padding: 0.75rem 1.25rem; }
+
+  /* ── Labels ── */
+  .lbl {
+    font-size: 10px; font-weight: 600;
+    letter-spacing: 1.5px; text-transform: uppercase;
+    color: var(--teal-dark); margin-bottom: 6px;
+  }
+
+  /* ── Inputs ── */
+  input, select, textarea {
+    width: 100%;
+    border: 2px solid var(--teal);
+    border-radius: var(--r);
+    padding: 11px 14px;
+    font-size: 15px;
+    font-family: inherit;
+    outline: none;
+    color: var(--ink);
+    background: var(--white);
+    appearance: none;
+    -webkit-appearance: none;
+  }
+  input:focus, select:focus, textarea:focus { border-color: var(--teal-dark); }
+  select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2300B4A0' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    padding-right: 36px;
+  }
+
+  /* ── Buttons ── */
+  .btn {
+    display: flex; align-items: center; justify-content: center; gap: 7px;
+    width: 100%;
+    padding: 13px;
+    border-radius: var(--r);
+    font-size: 14px; font-weight: 600;
+    cursor: pointer; border: none;
+    font-family: inherit;
+    transition: opacity 0.15s, transform 0.1s;
+    letter-spacing: 0.1px;
+  }
+  .btn:active { opacity: 0.85; transform: scale(0.99); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-teal { background: var(--teal); color: #fff; }
+  .btn-yellow { background: var(--yellow); color: var(--ink); }
+  .btn-ghost { background: transparent; color: var(--teal); border: 2px solid var(--teal); }
+  .btn-dark { background: var(--ink); color: #fff; }
+
+  .sp { margin-top: 10px; }
+  .sp-12 { margin-top: 12px; }
+  .sp-16 { margin-top: 16px; }
+  .sp-20 { margin-top: 20px; }
+  .sp-24 { margin-top: 24px; }
+  .divider { height: 1px; background: rgba(0,0,0,0.07); margin: 0.75rem 0; }
+
+  /* ── Room code box ── */
+  .code-box {
+    background: var(--teal);
+    border-radius: var(--r);
+    padding: 1.25rem;
+    text-align: center;
+    color: #fff;
+  }
+  .code-big {
+    font-size: 44px; font-weight: 600;
+    letter-spacing: 12px;
+    color: var(--yellow);
+    display: block; margin: 4px 0;
+  }
+  .code-hint { font-size: 11px; opacity: 0.85; }
+
+  /* ── Player chips ── */
+  .chip {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 12px;
+    background: var(--teal-light);
+    border-radius: 10px; margin-bottom: 7px;
+  }
+  .avatar {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 600; color: #fff; flex-shrink: 0;
+  }
+  .chip-name { font-size: 13px; font-weight: 500; color: var(--ink); flex: 1; }
+  .badge {
+    padding: 2px 8px; border-radius: 20px;
+    font-size: 10px; font-weight: 600;
+  }
+  .badge-ready { background: #9FE1CB; color: #085041; }
+  .badge-waiting { background: #FAC775; color: #633806; }
+
+  /* ── Match header ── */
+  .match-hdr {
+    background: var(--ink);
+    padding: 1rem 1.25rem;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .team-blk { text-align: center; flex: 1; }
+  .team-flag { font-size: 26px; display: block; }
+  .team-nm { font-size: 10px; color: rgba(255,255,255,0.65); margin-top: 3px; }
+  .vs-badge {
+    background: var(--yellow); color: var(--ink);
+    font-size: 11px; font-weight: 600;
+    padding: 3px 10px; border-radius: 20px;
+  }
+
+  /* ── Score steppers ── */
+  .score-pickers {
+    display: flex; align-items: center; justify-content: center;
+    gap: 12px; margin: 1.75rem 0;
+  }
+  .score-col { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .score-flag { font-size: 28px; }
+  .score-name { font-size: 10px; color: var(--teal-dark); font-weight: 600; text-align: center; max-width: 70px; }
+  .stepper { display: flex; align-items: center; border: 2px solid var(--teal); border-radius: 10px; overflow: hidden; }
+  .step-btn {
+    width: 36px; height: 46px;
+    background: var(--teal-light); border: none; cursor: pointer;
+    font-size: 22px; color: var(--teal-dark);
+    font-family: inherit; display: flex; align-items: center; justify-content: center;
+    transition: background 0.1s;
+  }
+  .step-btn:active { background: var(--teal); color: #fff; }
+  .step-val {
+    width: 46px; height: 46px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px; font-weight: 600; color: var(--ink);
+    background: #fff;
+  }
+  .score-dash { font-size: 30px; color: var(--teal); font-weight: 600; margin: 0 4px; padding-top: 26px; }
+
+  /* ── Sticker cards ── */
+  .sticker { border: 3px solid var(--ink); border-radius: 12px; overflow: hidden; margin-bottom: 10px; }
+  .sticker-top { padding: 11px 14px; display: flex; align-items: center; gap: 10px; }
+  .sticker-num { font-size: 22px; font-weight: 600; color: #fff; min-width: 28px; }
+  .sticker-info { flex: 1; }
+  .sticker-player { font-size: 13px; font-weight: 600; color: #fff; }
+  .sticker-pred { font-size: 11px; color: rgba(255,255,255,0.85); margin-top: 2px; }
+  .sticker-bot {
+    background: #fff; padding: 8px 14px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .sticker-wc { font-size: 9px; font-weight: 600; color: var(--teal-dark); letter-spacing: 1.5px; text-transform: uppercase; }
+  .diff-badge { padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 600; background: #E0F7F5; color: var(--teal-dark); }
+  .diff-badge.exact { background: var(--yellow); color: var(--ink); }
+  .diff-badge.close { background: #9FE1CB; color: #085041; }
+
+  /* ── Result inputs ── */
+  .result-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .result-row .rf { font-size: 22px; }
+  .result-row .ri {
+    width: 54px; border: 2px solid var(--teal); border-radius: 8px;
+    padding: 8px; font-size: 22px; font-weight: 600; text-align: center;
+    outline: none; font-family: inherit; color: var(--ink);
+  }
+  .result-row .rd { font-size: 22px; color: var(--teal); font-weight: 600; }
+
+  /* ── Winner card ── */
+  .winner-card {
+    background: var(--yellow); border-radius: var(--r);
+    padding: 1.25rem; text-align: center; margin-bottom: 1rem;
+  }
+  .winner-trophy { font-size: 36px; display: block; margin-bottom: 4px; }
+  .winner-name { font-size: 22px; font-weight: 600; color: var(--ink); }
+  .winner-sub { font-size: 12px; color: #555; margin-top: 3px; }
+
+  /* ── Spinner / loading ── */
+  .loading-wrap {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--teal-light); border-radius: 20px;
+    padding: 8px 14px; margin-top: 10px;
+  }
+  .spin {
+    width: 14px; height: 14px;
+    border: 2px solid var(--teal); border-top-color: transparent;
+    border-radius: 50%;
+    animation: sp 0.7s linear infinite; flex-shrink: 0;
+  }
+  @keyframes sp { to { transform: rotate(360deg); } }
+  .spin-text { font-size: 13px; color: var(--teal-dark); }
+
+  /* ── Error text ── */
+  .err { color: #A32D2D; font-size: 12px; margin-top: 6px; display: none; }
+
+  /* ── Setup notice ── */
+  .setup-notice {
+    background: #FFF8E1; border: 1px solid #FFD600;
+    border-radius: var(--r); padding: 1rem; margin-bottom: 1rem;
+    font-size: 12px; line-height: 1.6; color: var(--ink);
+  }
+  .setup-notice code {
+    background: rgba(0,0,0,0.07); border-radius: 4px;
+    padding: 1px 5px; font-size: 11px; font-family: monospace;
+  }
+  .setup-notice strong { color: var(--teal-dark); }
+
+  /* ── Real-time dot ── */
+  .rt-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #9FE1CB; display: inline-block; margin-right: 4px;
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* ── Rank icons ── */
+  .rank-icon { font-size: 18px; min-width: 26px; text-align: center; }
+
+  @media (max-width: 430px) {
+    body { background: var(--white); }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ══ HOME ══ -->
+  <div class="screen active" id="s-home">
+    <div class="topbar">
+      <div class="topbar-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#0A1628" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/><path d="M2 12h20"/>
+        </svg>
+      </div>
+      <div>
+        <div class="topbar-title">Score Predictor</div>
+        <div class="topbar-sub">World Cup 2026</div>
+      </div>
+    </div>
+    <div class="geo">
+      <div class="geo-c" style="width:88px;height:88px;background:#E8002D;transform:translateX(16px)"></div>
+      <div class="geo-c" style="width:64px;height:64px;background:#FFD600;transform:translateX(-4px)"></div>
+      <div class="geo-c" style="width:96px;height:96px;background:#00B4A0;transform:translateX(-20px)"></div>
+      <div class="geo-c" style="width:56px;height:56px;background:#FF6B00;transform:translateX(-36px)"></div>
+      <div class="geo-c" style="width:72px;height:72px;background:rgba(255,255,255,0.2);transform:translateX(-52px)"></div>
+    </div>
+    <div class="pad">
+      <div id="config-notice" class="setup-notice" style="display:none">
+        <strong>⚙️ Setup needed</strong><br>
+        Add your Supabase credentials at the top of this file:<br>
+        <code>SUPABASE_URL</code> and <code>SUPABASE_ANON_KEY</code><br><br>
+        See the README comments in the HTML source for the full setup guide.
+      </div>
+      <div class="lbl">Your name</div>
+      <input id="h-name" placeholder="e.g. Reem" maxlength="20">
+      <div class="sp-16"></div>
+      <button class="btn btn-teal" onclick="doCreate()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Create a room
+      </button>
+      <div style="text-align:center;margin:10px 0;font-size:12px;color:#888">or join with a code</div>
+      <div style="display:flex;gap:8px">
+        <input id="h-code" placeholder="XXXX" maxlength="4" style="flex:1;text-align:center;font-size:22px;letter-spacing:6px;text-transform:uppercase">
+        <button class="btn btn-ghost" style="width:auto;padding:12px 18px" onclick="doJoin()">Join</button>
+      </div>
+      <div class="err" id="h-err"></div>
+    </div>
+  </div>
+
+  <!-- ══ LOBBY (host) ══ -->
+  <div class="screen" id="s-lobby">
+    <div class="topbar">
+      <div class="topbar-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#0A1628" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/><path d="M2 12h20"/>
+        </svg>
+      </div>
+      <div>
+        <div class="topbar-title">Match lobby</div>
+        <div class="topbar-sub" id="lobby-sub">Setting up...</div>
+      </div>
+    </div>
+    <div class="pad">
+      <div class="code-box">
+        <div class="code-hint">Share this code with everyone</div>
+        <span class="code-big" id="lobby-code">----</span>
+        <div class="code-hint">They open the site and enter this code</div>
+      </div>
+      <div class="sp-16"></div>
+      <div class="lbl">Match</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div>
+          <div style="font-size:11px;color:#666;margin-bottom:4px">Team 1</div>
+          <select id="sel-t1" style="padding:9px 10px"></select>
+        </div>
+        <div>
+          <div style="font-size:11px;color:#666;margin-bottom:4px">Team 2</div>
+          <select id="sel-t2" style="padding:9px 10px"></select>
+        </div>
+      </div>
+      <div class="sp-16"></div>
+      <div class="lbl"><span class="rt-dot"></span>Players (<span id="lobby-count">1</span>)</div>
+      <div id="lobby-list"></div>
+      <div class="sp-16"></div>
+      <button class="btn btn-yellow" onclick="doStartGame()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        Start — everyone predicts now
+      </button>
+      <div class="err" id="lobby-err"></div>
+    </div>
+  </div>
+
+  <!-- ══ WAITING (non-host before start) ══ -->
+  <div class="screen" id="s-waiting">
+    <div class="topbar">
+      <div class="topbar-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#0A1628" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/><path d="M2 12h20"/>
+        </svg>
+      </div>
+      <div>
+        <div class="topbar-title">Joined!</div>
+        <div class="topbar-sub"><span class="rt-dot"></span>Waiting for host...</div>
+      </div>
+    </div>
+    <div class="pad" style="text-align:center">
+      <div style="font-size:64px;margin:2rem 0">⏳</div>
+      <div style="font-size:15px;font-weight:500;color:var(--ink)">Host is setting up the match</div>
+      <div style="font-size:12px;color:#888;margin-top:6px">Your screen will update automatically</div>
+      <div style="margin-top:1.5rem" class="code-box">
+        <span class="code-hint">Room code</span>
+        <span class="code-big" id="waiting-code" style="font-size:28px;letter-spacing:8px">----</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ PREDICT ══ -->
+  <div class="screen" id="s-predict">
+    <div class="match-hdr">
+      <div class="team-blk"><span class="team-flag" id="p-f1">🏳</span><div class="team-nm" id="p-n1">Team 1</div></div>
+      <div class="vs-badge">VS</div>
+      <div class="team-blk"><span class="team-flag" id="p-f2">🏳</span><div class="team-nm" id="p-n2">Team 2</div></div>
+    </div>
+    <div class="pad">
+      <div style="text-align:center;font-size:13px;color:#666;margin-bottom:4px">What will the final score be?</div>
+      <div class="score-pickers">
+        <div class="score-col">
+          <div class="score-flag" id="pp-f1">🏳</div>
+          <div class="score-name" id="pp-n1">Team 1</div>
+          <div class="stepper">
+            <button class="step-btn" onclick="adj(1,-1)">−</button>
+            <div class="step-val" id="sv1">0</div>
+            <button class="step-btn" onclick="adj(1,1)">+</button>
+          </div>
+        </div>
+        <div class="score-dash">–</div>
+        <div class="score-col">
+          <div class="score-flag" id="pp-f2">🏳</div>
+          <div class="score-name" id="pp-n2">Team 2</div>
+          <div class="stepper">
+            <button class="step-btn" onclick="adj(2,-1)">−</button>
+            <div class="step-val" id="sv2">0</div>
+            <button class="step-btn" onclick="adj(2,1)">+</button>
+          </div>
+        </div>
+      </div>
+      <button class="btn btn-teal" id="btn-lock" onclick="doLock()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        Lock in my prediction
+      </button>
+      <div class="loading-wrap" id="lock-loading" style="display:none">
+        <div class="spin"></div><span class="spin-text">Saving...</span>
+      </div>
+      <div class="err" id="lock-err"></div>
+    </div>
+  </div>
+
+  <!-- ══ LOCKED (non-host after predicting) ══ -->
+  <div class="screen" id="s-locked">
+    <div class="topbar">
+      <div class="topbar-icon" style="background:#9FE1CB">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#085041" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <div>
+        <div class="topbar-title">Prediction locked!</div>
+        <div class="topbar-sub"><span class="rt-dot"></span>Results update automatically</div>
+      </div>
+    </div>
+    <div class="pad" style="text-align:center">
+      <div style="font-size:60px;margin:2rem 0">🔒</div>
+      <div style="font-size:15px;font-weight:500;color:var(--ink)">Your pick: <span id="locked-pred" style="color:var(--teal);font-size:18px">0–0</span></div>
+      <div style="font-size:12px;color:#888;margin-top:6px">Sit back — results appear here when the host enters the final score</div>
+    </div>
+  </div>
+
+  <!-- ══ ENTER RESULT (host only) ══ -->
+  <div class="screen" id="s-result">
+    <div class="match-hdr">
+      <div class="team-blk"><span class="team-flag" id="r-f1">🏳</span><div class="team-nm" id="r-n1">Team 1</div></div>
+      <div class="vs-badge">RESULT</div>
+      <div class="team-blk"><span class="team-flag" id="r-f2">🏳</span><div class="team-nm" id="r-n2">Team 2</div></div>
+    </div>
+    <div class="pad">
+      <div class="lbl">Enter the real score</div>
+      <div class="result-row">
+        <span class="rf" id="r-rf1">🏳</span>
+        <input class="ri" type="number" id="r-s1" min="0" max="20" value="0">
+        <span class="rd">—</span>
+        <input class="ri" type="number" id="r-s2" min="0" max="20" value="0">
+        <span class="rf" id="r-rf2">🏳</span>
+      </div>
+      <div class="divider"></div>
+      <div class="lbl">Predictions submitted</div>
+      <div id="preds-preview"></div>
+      <div class="sp-16"></div>
+      <button class="btn btn-yellow" onclick="doReveal()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/></svg>
+        Reveal winner!
+      </button>
+      <div class="loading-wrap" id="reveal-loading" style="display:none">
+        <div class="spin"></div><span class="spin-text">Calculating scores...</span>
+      </div>
+      <div class="err" id="reveal-err"></div>
+    </div>
+  </div>
+
+  <!-- ══ FINAL SCORES ══ -->
+  <div class="screen" id="s-scores">
+    <div class="topbar" style="background:var(--ink)">
+      <div class="topbar-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#0A1628" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/>
+        </svg>
+      </div>
+      <div>
+        <div class="topbar-title" style="color:#fff">Final standings</div>
+        <div class="topbar-sub" id="sc-match">World Cup 2026</div>
+      </div>
+    </div>
+    <div class="pad">
+      <div id="sc-winner"></div>
+      <div class="lbl">Scoreboard</div>
+      <div id="sc-list"></div>
+      <div class="sp-24"></div>
+      <button class="btn btn-yellow" onclick="doNextMatch()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg>
+        Next match
+      </button>
+      <div class="sp"></div>
+      <button class="btn btn-ghost" onclick="doNewRoom()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        New room
+      </button>
+    </div>
+  </div>
+
+</div><!-- /app -->
+
+<script>
+/*
+ * ══════════════════════════════════════════════════════
+ *  SCORE PREDICTOR — World Cup 2026
+ *  Standalone file — deploy to Vercel, Netlify, etc.
+ * ══════════════════════════════════════════════════════
+ *
+ *  SETUP (5 minutes):
+ *  1. Create a free account at https://supabase.com
+ *  2. Create a new project
+ *  3. Go to the SQL Editor and run this SQL:
+ *
+ *     create table rooms (
+ *       code      text primary key,
+ *       host      text not null,
+ *       t1idx     int default 0,
+ *       t2idx     int default 1,
+ *       started   boolean default false,
+ *       result    jsonb,
+ *       preds     jsonb default '{}'::jsonb,
+ *       players   jsonb default '[]'::jsonb,
+ *       created_at timestamptz default now()
+ *     );
+ *     alter table rooms enable row level security;
+ *     create policy "public read" on rooms for select using (true);
+ *     create policy "public insert" on rooms for insert with check (true);
+ *     create policy "public update" on rooms for update using (true);
+ *
+ *  4. Go to Project Settings → API
+ *     Copy "Project URL" → paste as SUPABASE_URL below
+ *     Copy "anon public" key → paste as SUPABASE_ANON_KEY below
+ *
+ *  5. Deploy the whole folder (just this file) to Vercel
+ *
+ * ══════════════════════════════════════════════════════
+ */
+
+const SUPABASE_URL  = 'https://xpwnkdjtjumpijlrnqoj.supabase.co/rest/v1/';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhwd25rZGp0anVtcGlqbHJucW9qIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExOTU5ODgsImV4cCI6MjA5Njc3MTk4OH0.woYQup8EZQs2xVesfzuRJMZNMKmSivTuWROGdLuU-QI';
+
+// ── Teams ──────────────────────────────────────────────
+const TEAMS = [
+  {n:'Saudi Arabia',f:'🇸🇦'},{n:'Argentina',f:'🇦🇷'},{n:'Brazil',f:'🇧🇷'},
+  {n:'France',f:'🇫🇷'},{n:'Germany',f:'🇩🇪'},{n:'Spain',f:'🇪🇸'},
+  {n:'England',f:'🏴󠁧󠁢󠁥󠁮󠁧󠁿'},{n:'Morocco',f:'🇲🇦'},{n:'Portugal',f:'🇵🇹'},
+  {n:'Netherlands',f:'🇳🇱'},{n:'Italy',f:'🇮🇹'},{n:'USA',f:'🇺🇸'},
+  {n:'Mexico',f:'🇲🇽'},{n:'Japan',f:'🇯🇵'},{n:'Senegal',f:'🇸🇳'},
+  {n:'Egypt',f:'🇪🇬'},{n:'Colombia',f:'🇨🇴'},{n:'Uruguay',f:'🇺🇾'},
+  {n:'Croatia',f:'🇭🇷'},{n:'South Korea',f:'🇰🇷'},{n:'Australia',f:'🇦🇺'},
+  {n:'Canada',f:'🇨🇦'},{n:'Ecuador',f:'🇪🇨'},{n:'Ghana',f:'🇬🇭'},
+  {n:'Iran',f:'🇮🇷'},{n:'Nigeria',f:'🇳🇬'},{n:'Poland',f:'🇵🇱'},
+  {n:'Switzerland',f:'🇨🇭'},{n:'Tunisia',f:'🇹🇳'},{n:'Qatar',f:'🇶🇦'},
+  {n:'Serbia',f:'🇷🇸'},{n:'Denmark',f:'🇩🇰'},
+];
+const COLORS = ['#00B4A0','#E8002D','#FF6B00','#0A1628','#7F77DD',
+                '#3B6D11','#185FA5','#854F0B','#993556','#3C3489'];
+
+// ── State ──────────────────────────────────────────────
+let sb, channel;
+let me = { name:'', isHost:false, roomCode:'', pred:{s1:0, s2:0} };
+
+// ── Bootstrap ─────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  const configured = SUPABASE_URL !== 'YOUR_SUPABASE_URL';
+  if (!configured) {
+    document.getElementById('config-notice').style.display = 'block';
+  } else {
+    sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  }
+  initSelects();
+  document.getElementById('h-code').addEventListener('input', function() {
+    this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  });
+});
+
+// ── Helpers ────────────────────────────────────────────
+function show(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('s-' + id).classList.add('active');
+}
+function errShow(id, msg) {
+  const e = document.getElementById(id);
+  e.textContent = msg; e.style.display = msg ? 'block' : 'none';
+}
+function genCode() { return Math.random().toString(36).substring(2,6).toUpperCase(); }
+
+function initSelects() {
+  ['sel-t1','sel-t2'].forEach((id, idx) => {
+    const s = document.getElementById(id); s.innerHTML = '';
+    TEAMS.forEach((t, i) => {
+      const o = document.createElement('option');
+      o.value = i; o.textContent = t.f + ' ' + t.n;
+      if (idx === 0 && i === 0) o.selected = true;
+      if (idx === 1 && i === 1) o.selected = true;
+      s.appendChild(o);
+    });
+  });
+}
+
+// ── Supabase helpers ────────────────────────────────────
+async function getRoom(code) {
+  const { data, error } = await sb.from('rooms').select('*').eq('code', code).single();
+  if (error) return null;
+  return data;
+}
+async function updateRoom(code, patch) {
+  const { error } = await sb.from('rooms').update(patch).eq('code', code);
+  return !error;
+}
+
+// ── Real-time subscription ──────────────────────────────
+function subscribeRoom(code) {
+  if (channel) sb.removeChannel(channel);
+  channel = sb.channel('room-' + code)
+    .on('postgres_changes', {
+      event: 'UPDATE', schema: 'public', table: 'rooms', filter: `code=eq.${code}`
+    }, payload => {
+      handleRoomUpdate(payload.new);
+    })
+    .subscribe();
+}
+
+function handleRoomUpdate(room) {
+  if (me.isHost) {
+    // Host: refresh lobby player list in real-time
+    const currentScreen = document.querySelector('.screen.active')?.id;
+    if (currentScreen === 's-lobby') renderLobby(room);
+    if (currentScreen === 's-result') renderPredsPreview(room);
+    return;
+  }
+  // Non-host: react to state changes
+  if (room.result) {
+    renderScores(room); show('scores'); return;
+  }
+  if (room.started) {
+    setupPredictScreen(room);
+    const currentScreen = document.querySelector('.screen.active')?.id;
+    if (currentScreen === 's-waiting') show('predict');
+  }
+}
+
+// ── CREATE room ────────────────────────────────────────
+async function doCreate() {
+  const name = document.getElementById('h-name').value.trim();
+  if (!name) { errShow('h-err', 'Enter your name first!'); return; }
+  if (!sb) { errShow('h-err', 'Supabase not configured — see setup in HTML source.'); return; }
+  errShow('h-err', '');
+  me.name = name; me.isHost = true;
+  const code = genCode(); me.roomCode = code;
+  const { error } = await sb.from('rooms').insert({
+    code, host: name,
+    players: [{ name, ready: false }],
+    started: false, t1idx: 0, t2idx: 1,
+    preds: {}, result: null
+  });
+  if (error) { errShow('h-err', 'Could not create room. Try again.'); return; }
+  subscribeRoom(code);
+  document.getElementById('lobby-code').textContent = code;
+  document.getElementById('lobby-sub').textContent = 'Host: ' + name;
+  const room = await getRoom(code);
+  renderLobby(room);
+  show('lobby');
+}
+
+// ── JOIN room ──────────────────────────────────────────
+async function doJoin() {
+  const name = document.getElementById('h-name').value.trim();
+  const code = document.getElementById('h-code').value.trim().toUpperCase();
+  if (!name) { errShow('h-err', 'Enter your name first!'); return; }
+  if (code.length !== 4) { errShow('h-err', 'Enter a 4-letter room code!'); return; }
+  if (!sb) { errShow('h-err', 'Supabase not configured — see setup in HTML source.'); return; }
+  errShow('h-err', '');
+  const room = await getRoom(code);
+  if (!room) { errShow('h-err', 'Room not found. Check the code!'); return; }
+  me.name = name; me.isHost = false; me.roomCode = code;
+  const players = room.players || [];
+  if (!players.find(p => p.name === name)) {
+    players.push({ name, ready: false });
+    await updateRoom(code, { players });
+  }
+  subscribeRoom(code);
+  if (room.result) { renderScores(room); show('scores'); return; }
+  if (room.started) { setupPredictScreen(room); show('predict'); return; }
+  document.getElementById('waiting-code').textContent = code;
+  show('waiting');
+}
+
+// ── LOBBY helpers ──────────────────────────────────────
+function renderLobby(room) {
+  document.getElementById('lobby-count').textContent = (room.players || []).length;
+  const list = document.getElementById('lobby-list'); list.innerHTML = '';
+  (room.players || []).forEach((p, i) => {
+    const hasPred = room.preds && room.preds[p.name];
+    list.innerHTML += `<div class="chip">
+      <div class="avatar" style="background:${COLORS[i % COLORS.length]}">${p.name[0].toUpperCase()}</div>
+      <span class="chip-name">${p.name}${p.name === room.host ? ' 👑' : ''}</span>
+      <span class="${hasPred ? 'badge badge-ready' : 'badge badge-waiting'}">${hasPred ? 'Predicted' : 'Joined'}</span>
+    </div>`;
+  });
+}
+
+// ── START game ─────────────────────────────────────────
+async function doStartGame() {
+  const t1i = parseInt(document.getElementById('sel-t1').value);
+  const t2i = parseInt(document.getElementById('sel-t2').value);
+  if (t1i === t2i) { alert('Pick two different teams!'); return; }
+  const ok = await updateRoom(me.roomCode, { started: true, t1idx: t1i, t2idx: t2i, preds: {}, result: null });
+  if (!ok) { errShow('lobby-err', 'Could not start. Try again.'); return; }
+  const room = await getRoom(me.roomCode);
+  setupPredictScreen(room); show('predict');
+}
+
+function setupPredictScreen(room) {
+  const t1 = TEAMS[room.t1idx], t2 = TEAMS[room.t2idx];
+  document.getElementById('p-f1').textContent = t1.f; document.getElementById('p-n1').textContent = t1.n;
+  document.getElementById('p-f2').textContent = t2.f; document.getElementById('p-n2').textContent = t2.n;
+  document.getElementById('pp-f1').textContent = t1.f; document.getElementById('pp-n1').textContent = t1.n;
+  document.getElementById('pp-f2').textContent = t2.f; document.getElementById('pp-n2').textContent = t2.n;
+  me.pred = { s1: 0, s2: 0 };
+  document.getElementById('sv1').textContent = '0';
+  document.getElementById('sv2').textContent = '0';
+  document.getElementById('btn-lock').style.display = '';
+  document.getElementById('lock-loading').style.display = 'none';
+  errShow('lock-err', '');
+}
+
+// ── SCORE steppers ─────────────────────────────────────
+function adj(team, delta) {
+  const key = team === 1 ? 's1' : 's2';
+  const elId = team === 1 ? 'sv1' : 'sv2';
+  me.pred[key] = Math.max(0, Math.min(20, (me.pred[key] || 0) + delta));
+  document.getElementById(elId).textContent = me.pred[key];
+}
+
+// ── LOCK prediction ────────────────────────────────────
+async function doLock() {
+  document.getElementById('btn-lock').style.display = 'none';
+  document.getElementById('lock-loading').style.display = 'flex';
+  const room = await getRoom(me.roomCode);
+  if (!room) { errShow('lock-err', 'Could not save. Try again.'); document.getElementById('btn-lock').style.display = ''; document.getElementById('lock-loading').style.display = 'none'; return; }
+  const preds = room.preds || {};
+  preds[me.name] = { s1: me.pred.s1, s2: me.pred.s2 };
+  await updateRoom(me.roomCode, { preds });
+  document.getElementById('lock-loading').style.display = 'none';
+  document.getElementById('locked-pred').textContent = me.pred.s1 + '–' + me.pred.s2;
+  if (me.isHost) {
+    const updated = await getRoom(me.roomCode);
+    const t1 = TEAMS[updated.t1idx], t2 = TEAMS[updated.t2idx];
+    document.getElementById('r-f1').textContent = t1.f; document.getElementById('r-n1').textContent = t1.n;
+    document.getElementById('r-f2').textContent = t2.f; document.getElementById('r-n2').textContent = t2.n;
+    document.getElementById('r-rf1').textContent = t1.f; document.getElementById('r-rf2').textContent = t2.f;
+    document.getElementById('r-s1').value = 0; document.getElementById('r-s2').value = 0;
+    renderPredsPreview(updated);
+    show('result');
+  } else {
+    show('locked');
+  }
+}
+
+function renderPredsPreview(room) {
+  const el = document.getElementById('preds-preview'); el.innerHTML = '';
+  Object.entries(room.preds || {}).forEach(([name, pred], i) => {
+    el.innerHTML += `<div class="sticker">
+      <div class="sticker-top" style="background:${COLORS[i % COLORS.length]}">
+        <div class="sticker-num">${String(i+1).padStart(2,'0')}</div>
+        <div class="sticker-info">
+          <div class="sticker-player">${name}</div>
+          <div class="sticker-pred">Predicted: ${pred.s1} – ${pred.s2}</div>
+        </div>
+      </div>
+      <div class="sticker-bot"><span class="sticker-wc">WC 2026</span></div>
+    </div>`;
+  });
+}
+
+// ── REVEAL results ─────────────────────────────────────
+async function doReveal() {
+  const rs1 = parseInt(document.getElementById('r-s1').value) || 0;
+  const rs2 = parseInt(document.getElementById('r-s2').value) || 0;
+  document.getElementById('reveal-loading').style.display = 'flex';
+  const room = await getRoom(me.roomCode);
+  if (!room) { errShow('reveal-err', 'Error fetching room.'); document.getElementById('reveal-loading').style.display = 'none'; return; }
+  const real = { s1: rs1, s2: rs2 };
+  const ranked = Object.entries(room.preds || {}).map(([name, pred]) => ({
+    name, pred,
+    diff: Math.abs(pred.s1 - real.s1) + Math.abs(pred.s2 - real.s2),
+    exact: pred.s1 === real.s1 && pred.s2 === real.s2
+  })).sort((a, b) => a.diff - b.diff);
+  const result = { real, ranked, t1idx: room.t1idx, t2idx: room.t2idx };
+  await updateRoom(me.roomCode, { result });
+  document.getElementById('reveal-loading').style.display = 'none';
+  room.result = result;
+  renderScores(room); show('scores');
+}
+
+// ── RENDER final scores ────────────────────────────────
+function renderScores(room) {
+  const res = room.result;
+  const t1 = TEAMS[res.t1idx != null ? res.t1idx : room.t1idx];
+  const t2 = TEAMS[res.t2idx != null ? res.t2idx : room.t2idx];
+  document.getElementById('sc-match').textContent = `${t1.f} ${t1.n} ${res.real.s1}–${res.real.s2} ${t2.n} ${t2.f}`;
+  const ranked = res.ranked;
+  const winner = ranked[0];
+  const diffLabel = winner.exact ? 'Exact score!' : winner.diff === 1 ? 'Off by 1 goal' : `Off by ${winner.diff} goals`;
+  document.getElementById('sc-winner').innerHTML = `<div class="winner-card">
+    <span class="winner-trophy">🏆</span>
+    <div class="winner-name">${winner.name}</div>
+    <div class="winner-sub">Predicted ${winner.pred.s1}–${winner.pred.s2} · ${diffLabel}</div>
+  </div>`;
+  const list = document.getElementById('sc-list'); list.innerHTML = '';
+  const icons = ['🥇','🥈','🥉'];
+  const predKeys = Object.keys(room.preds || {});
+  ranked.forEach((r, i) => {
+    const colorIdx = predKeys.indexOf(r.name);
+    const col = COLORS[(colorIdx >= 0 ? colorIdx : i) % COLORS.length];
+    const diffTxt = r.exact ? 'Exact!' : r.diff === 1 ? 'Off by 1' : `Off by ${r.diff}`;
+    const badgeCls = r.exact ? 'exact' : r.diff <= 2 ? 'close' : '';
+    list.innerHTML += `<div class="sticker">
+      <div class="sticker-top" style="background:${col}">
+        <div class="rank-icon">${icons[i] || '#' + (i+1)}</div>
+        <div class="sticker-info">
+          <div class="sticker-player">${r.name}</div>
+          <div class="sticker-pred">Predicted: ${r.pred.s1} – ${r.pred.s2}</div>
+        </div>
+        <span class="diff-badge ${badgeCls}">${diffTxt}</span>
+      </div>
+      <div class="sticker-bot"><span class="sticker-wc">WC 2026</span></div>
+    </div>`;
+  });
+}
+
+// ── NEXT match / new room ──────────────────────────────
+async function doNextMatch() {
+  if (me.isHost) {
+    await updateRoom(me.roomCode, { started: false, preds: {}, result: null });
+    const room = await getRoom(me.roomCode);
+    initSelects();
+    document.getElementById('lobby-sub').textContent = 'Next match — host: ' + me.name;
+    renderLobby(room); show('lobby');
+  } else {
+    show('waiting');
+    document.getElementById('waiting-code').textContent = me.roomCode;
+  }
+}
+function doNewRoom() {
+  if (channel) sb.removeChannel(channel);
+  me = { name:'', isHost:false, roomCode:'', pred:{s1:0, s2:0} };
+  show('home');
+}
+</script>
+</body>
+</html>
