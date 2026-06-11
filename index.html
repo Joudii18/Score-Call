@@ -700,7 +700,12 @@ function renderMatchTab(room) {
             Reveal winner!
           </button>
           <div class="loading-wrap" id="reveal-loading" style="display:none"><div class="spin"></div><span class="spin-text">Calculating...</span></div>
-          <div class="err" id="reveal-err"></div>` : ''}`;
+          <div class="err" id="reveal-err"></div>
+          <div class="divider"></div>
+          <button class="btn btn-ghost" onclick="doEditTeams()" style="font-size:13px;padding:10px;color:#A32D2D;border-color:#A32D2D">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            Wrong teams? Reset match (only you predicted)
+          </button>` : ''}`;
     } else {
       // hasn't predicted — show predict button
       el.innerHTML = `
@@ -718,6 +723,7 @@ function renderMatchTab(room) {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
           Wrong teams? Edit before anyone predicts
         </button>` : ''}`;
+
     }
     return;
   }
@@ -849,12 +855,16 @@ async function doNextMatch() {
 async function doEditTeams() {
   const room = await getRoom(me.roomCode);
   if (!room) return;
-  // Double-check no predictions yet
-  if (Object.keys(room.preds || {}).length > 0) {
-    alert('Cannot change teams — predictions have already been submitted!');
+  const preds = room.preds || {};
+  const predNames = Object.keys(preds);
+  // Allow reset if only the host has predicted (or nobody)
+  const othersHavePredicted = predNames.some(n => n !== me.name);
+  if (othersHavePredicted) {
+    alert('Cannot change teams — other players have already submitted predictions!');
     return;
   }
-  // Reset match to un-started so host can pick teams again
+  if (!confirm('Reset this match? Your prediction will be cleared and you can pick new teams.')) return;
+  // Reset match completely — clears all preds including host's
   await updateRoom(me.roomCode, { started: false, preds: {}, result: null });
   const updated = await getRoom(me.roomCode);
   renderMatchTab(updated);
