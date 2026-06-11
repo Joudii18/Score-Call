@@ -463,10 +463,8 @@ async function loadMyRooms() {
   el.innerHTML = '';
   myRooms.slice(0, 6).forEach(r => {
     const t1 = TEAMS[r.t1idx] || TEAMS[0], t2 = TEAMS[r.t2idx] || TEAMS[1];
-    const isExpired = (Date.now() - new Date(r.created_at).getTime()) > 7*24*60*60*1000;
-    let statusHtml, canRejoin = !isExpired;
-    if (isExpired) statusHtml = '<span class="status-pill" style="background:#eee;color:#888">Expired</span>';
-    else if (r.result) statusHtml = '<span class="status-pill status-done">Finished</span>';
+    let statusHtml, canRejoin = true;
+    if (r.result) statusHtml = '<span class="status-pill status-done">Finished</span>';
     else if (r.started) statusHtml = '<span class="status-pill status-active">In progress</span>';
     else statusHtml = '<span class="status-pill status-waiting">Waiting</span>';
     const myPts = (r.leaderboard || {})[name] || 0;
@@ -476,7 +474,7 @@ async function loadMyRooms() {
         <div class="room-card-name">${r.room_name || 'Room ' + r.code}</div>
         <div class="room-card-sub">${r.code} · ${myPts} pts ${statusHtml}</div>
       </div>
-      ${canRejoin ? `<button class="btn-sm" onclick="doRejoin('${r.code}')">Rejoin</button>` : '<span style="font-size:11px;color:#aaa">Expired</span>'}
+      <button class="btn-sm" onclick="doRejoin('${r.code}')">Rejoin</button>
     </div>`;
   });
 }
