@@ -551,12 +551,15 @@ async function enterRoom(code) {
   renderMatchTab(room);
   show('s-room');
   // if game is active and user hasn't predicted, jump to predict screen
+  // Anti-cheat: only show predict screen if no existing prediction in DB
   if (room.started && !room.result) {
     const myPred = (room.preds || {})[me.name];
     if (!myPred) {
       setupPredictScreen(room);
       show('s-predict');
     }
+    // already predicted — stay on room home, match tab
+    else { switchTab('match'); }
   }
 }
 
@@ -738,7 +741,12 @@ function renderMatchTab(room) {
 
 // ── Predict flow ───────────────────────────────────────
 function setupAndPredict() {
-  getRoom(me.roomCode).then(room => { setupPredictScreen(room); show('s-predict'); });
+  getRoom(me.roomCode).then(room => {
+    // Anti-cheat: if already predicted, never show predict screen again
+    const myPred = (room.preds||{})[me.name];
+    if (myPred) { renderMatchTab(room); switchTab('match'); return; }
+    setupPredictScreen(room); show('s-predict');
+  });
 }
 
 function setupPredictScreen(room) {
@@ -766,12 +774,19 @@ async function doLock() {
   document.getElementById('lock-loading').style.display = 'flex';
   const room = await getRoom(me.roomCode);
   if (!room) { errShow('lock-err','Could not save. Try again.'); document.getElementById('btn-lock').style.display=''; document.getElementById('lock-loading').style.display='none'; return; }
-  const preds = room.preds || {};
-  preds[me.name] = { s1:me.pred.s1, s2:me.pred.s2 };
-  const ok = await updateRoom(me.roomCode, { preds });
+  // Anti-cheat: re-check DB for existing prediction before saving
+  const existingPreds = room.preds || {};
+  if (existingPreds[me.name]) {
+    document.getElementById('lock-loading').style.display = 'none';
+    const updated = await getRoom(me.roomCode);
+    renderLeaderboard(updated); renderMatchHistory(updated); renderMatchTab(updated);
+    show('s-room'); switchTab('match');
+    return;
+  }
+  existingPreds[me.name] = { s1:me.pred.s1, s2:me.pred.s2 };
+  const ok = await updateRoom(me.roomCode, { preds: existingPreds });
   document.getElementById('lock-loading').style.display = 'none';
   if (!ok) { errShow('lock-err','Could not save. Try again.'); document.getElementById('btn-lock').style.display=''; return; }
-  // Go back to room home
   const updated = await getRoom(me.roomCode);
   renderLeaderboard(updated); renderMatchHistory(updated); renderMatchTab(updated);
   show('s-room'); switchTab('match');
@@ -863,7 +878,10 @@ function subscribeRoom(code) {
       // auto-route non-host on predict screen trigger
       if (!me.isHost && room.started && !room.result) {
         const myPred = (room.preds||{})[me.name];
+        // Anti-cheat: only route to predict screen if no existing prediction
         if (!myPred && active !== 's-predict') { setupPredictScreen(room); show('s-predict'); }
+        // If they somehow end up on predict screen but already predicted, bounce them back
+        if (myPred && active === 's-predict') { renderMatchTab(room); show('s-room'); switchTab('match'); }
       }
       if (!me.isHost && room.result && active !== 's-room') {
         renderMatchTab(room); show('s-room'); switchTab('match');
